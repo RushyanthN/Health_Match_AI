@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Health Insurance AI Platform</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        .hero-section {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 4rem 0;
+        }
+        .search-card {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            padding: 2rem;
+            margin-top: -3rem;
+            position: relative;
+            z-index: 10;
+        }
+        .plan-card {
+            border: none;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
+            transition: transform 0.3s ease;
+            margin-bottom: 1.5rem;
+        }
+        .plan-card:hover {
+            transform: translateY(-5px);
+        }
+        .plan-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 10px 10px 0 0;
+            padding: 1rem;
+        }
+        .premium-badge {
+            background: #28a745;
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-weight: bold;
+        }
+        .rating-stars {
+            color: #ffc107;
+        }
+        .benefit-item {
+            background: #f8f9fa;
+            border-left: 4px solid #28a745;
+            padding: 0.5rem 1rem;
+            margin: 0.25rem 0;
+            border-radius: 0 5px 5px 0;
+        }
+        .loading-spinner {
+            display: none;
+        }
+        .results-section {
+            margin-top: 3rem;
+        }
+        .data-freshness {
+            background: #e8f5e8;
+            border: 1px solid #28a745;
+            border-radius: 5px;
+            padding: 0.5rem 1rem;
+            margin-bottom: 1rem;
+        }
+        .recommendation-card {
+            background: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
+            border-radius: 10px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <!-- Hero Section -->
+    <div class="hero-section">
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-8 mx-auto text-center">
+                    <h1 class="display-4 fw-bold mb-4">
+                        <i class="fas fa-heartbeat me-3"></i>
+                        Health Insurance AI Platform
+                    </h1>
+                    <p class="lead mb-4">
+                        Find the perfect health insurance plan with AI-powered recommendations. 
+                        Get real-time data and intelligent suggestions tailored to your needs.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Search Section -->
+    <div class="container">
+        <div class="row">
+            <div class="col-lg-10 mx-auto">
+                <div class="search-card">
+                    <form id="searchForm">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="query" class="form-label">
+                                    <i class="fas fa-search me-2"></i>What are you looking for?
+                                </label>
+                                <input type="text" class="form-control" id="query" name="query" 
+                                       placeholder="e.g., low cost plans, family coverage, dental insurance">
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="location" class="form-label">
+                                    <i class="fas fa-map-marker-alt me-2"></i>Location
+                                </label>
+                                <input type="text" class="form-control" id="location" name="location" 
+                                       placeholder="e.g., California, New York">
+                            </div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-md-3 mb-3">
+                                <label for="max_premium" class="form-label">Max Premium</label>
+                                <input type="number" class="form-control" id="max_premium" name="max_premium" 
+                                       placeholder="500">
+                            </div>
+                        </div>
+                        
+                        <div class="text-center">
+                            <button type="submit" class="btn btn-primary btn-lg px-5">
+                                <i class="fas fa-search me-2"></i>Find My Perfect Plan
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Results Section -->
+    <div class="container results-section" id="resultsSection" style="display: none;">
+        <div class="row">
+            <div class="col-12">
+                <div class="data-freshness" id="dataFreshness">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <span id="freshnessText">Data is being checked...</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="row">
+            <div class="col-lg-8">
+                <h3 class="mb-4">
+                    <i class="fas fa-list me-2"></i>Available Plans
+                    <span class="badge bg-primary ms-2" id="planCount">0</span>
+                </h3>
+                <div id="plansContainer">
+                    <!-- Plans will be loaded here -->
+                </div>
+            </div>
+            
+            <div class="col-lg-4">
+                <h3 class="mb-4">
+                    <i class="fas fa-lightbulb me-2"></i>AI Recommendations
+                </h3>
+                <div id="recommendationsContainer">
+                    <!-- Recommendations will be loaded here -->
+                </div>
+                
+                <!-- Comparison Button -->
+                <div class="mt-4">
+                    <button id="compareBtn" class="btn btn-warning btn-lg w-100" style="display: none;" onclick="compareSelectedPlans()">
+                        <i class="fas fa-balance-scale me-2"></i>Compare Plans
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Spinner -->
+    <div class="text-center loading-spinner" id="loadingSpinner">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+        <p class="mt-2">Searching for the best plans...</p>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.getElementById('searchForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const formData = new FormData(this);
+            const searchData = {
+                query: formData.get('query') || '',
+                location: formData.get('location') || null,
+                max_premium: formData.get('max_premium') ? parseFloat(formData.get('max_premium')) : null,
+                max_deductible: formData.get('max_deductible') ? parseFloat(formData.get('max_deductible')) : null,
+                coverage_type: formData.get('coverage_type') || null
+            };
+            
+            // Show loading
+            document.getElementById('loadingSpinner').style.display = 'block';
+            document.getElementById('resultsSection').style.display = 'none';
+            
+            try {
+                const response = await fetch('/api/search', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(searchData)
+                });
+                
+                const result = await response.json();
+                
+                // Hide loading
+                document.getElementById('loadingSpinner').style.display = 'none';
+                
+                // Show results
+                displayResults(result);
+                
+            } catch (error) {
+                console.error('Search error:', error);
+                document.getElementById('loadingSpinner').style.display = 'none';
+                alert('Error searching for plans. Please try again.');
+            }
+        });
+        
+        function displayResults(result) {
+            // Update data freshness
+            document.getElementById('freshnessText').textContent = 
+                `Data Status: ${result.data_freshness} | Found ${result.total_found} plans`;
+            
+            // Update plan count
+            document.getElementById('planCount').textContent = result.total_found;
+            
+            // Display plans
+            const plansContainer = document.getElementById('plansContainer');
+            plansContainer.innerHTML = '';
+            
+            if (result.plans.length === 0) {
+                plansContainer.innerHTML = `
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        No plans found matching your criteria. Try adjusting your search parameters.
+                    </div>
+                `;
+            } else {
+                result.plans.forEach(plan => {
+                    const planCard = createPlanCard(plan);
+                    plansContainer.appendChild(planCard);
+                });
+            }
+            
+            // Display recommendations
+            const recommendationsContainer = document.getElementById('recommendationsContainer');
+            recommendationsContainer.innerHTML = '';
+            
+            if (result.recommendations.length === 0) {
+                recommendationsContainer.innerHTML = `
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        No specific recommendations available at this time.
+                    </div>
+                `;
+            } else {
+                result.recommendations.forEach(rec => {
+                    const recCard = createRecommendationCard(rec);
+                    recommendationsContainer.appendChild(recCard);
+                });
+            }
+            
+            // Show results section
+            document.getElementById('resultsSection').style.display = 'block';
+        }
+        
+        function createPlanCard(plan) {
+            const card = document.createElement('div');
+            card.className = 'card plan-card';
+            card.innerHTML = `
+                <div class="plan-header">
+                    <div class="row align-items-center">
+                        <div class="col-md-8">
+                            <h5 class="mb-1">${plan.name}</h5>
+                            <p class="mb-0"><i class="fas fa-building me-2"></i>${plan.carrier_name || 'Unknown Carrier'}</p>
+                        </div>
+                        <div class="col-md-4 text-end">
+                            <div class="premium-badge">
+                                $${plan.premium}/month
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6><i class="fas fa-dollar-sign me-2"></i>Cost Details</h6>
+                            <ul class="list-unstyled">
+                                <li><strong>Premium:</strong> $${plan.premium}/month</li>
+                                <li><strong>Deductible:</strong> $${plan.deductible}</li>
+                                <li><strong>Type:</strong> ${plan.coverage_type}</li>
+                                <li><strong>Network:</strong> ${plan.network_type}</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <h6><i class="fas fa-star me-2"></i>Rating & Benefits</h6>
+                            <div class="rating-stars mb-2">
+                                ${'★'.repeat(Math.floor(plan.rating))}${'☆'.repeat(5-Math.floor(plan.rating))}
+                                <span class="ms-2">${plan.rating}/5</span>
+                            </div>
+                            <div class="benefits">
+                                ${plan.benefits.slice(0, 3).map(benefit => 
+                                    `<div class="benefit-item">${benefit}</div>`
+                                ).join('')}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="text-end mt-3">
+                        <button class="btn btn-outline-primary btn-sm me-2" onclick="viewPlanDetails('${plan.id}')">
+                            <i class="fas fa-info-circle me-1"></i>Details
+                        </button>
+                        <button class="btn btn-outline-success btn-sm me-2" onclick="calculateCost('${plan.id}')">
+                            <i class="fas fa-calculator me-1"></i>Cost
+                        </button>
+                        <button class="btn btn-outline-warning btn-sm" onclick="addToComparison('${plan.id}')">
+                            <i class="fas fa-balance-scale me-1"></i>Compare
+                        </button>
+                    </div>
+                </div>
+            `;
+            return card;
+        }
+        
+        function createRecommendationCard(rec) {
+            const card = document.createElement('div');
+            card.className = 'recommendation-card';
+            card.innerHTML = `
+                <h6><i class="fas fa-lightbulb me-2"></i>${rec.title}</h6>
+                <p class="mb-2">${rec.description}</p>
+                <small class="text-muted">Confidence: ${Math.round(rec.confidence * 100)}%</small>
+            `;
+            return card;
+        }
+        
+        async function viewPlanDetails(planId) {
+            try {
+                const response = await fetch(`/api/plans/${planId}`);
+                const data = await response.json();
+                
+                if (data.success && data.plan) {
+                    showPlanModal(data.plan);
+                } else {
+                    alert(`Error: ${data.error || 'Plan not found'}`);
+                }
+            } catch (error) {
+                alert(`Error loading plan details: ${error.message}`);
+            }
+        }
+        
+        // Global variables for comparison
+        let comparisonPlans = [];
+        
+        function showPlanModal(plan) {
+            // Create modal HTML
+            const modalHtml = `
+                <div class="modal fade" id="planModal" tabindex="-1" aria-labelledby="planModalLabel" aria-hidden="true">
+                    <div class="modal-dialog modal-lg">
+                        <div class="modal-content">
+                            <div class="modal-header" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                                <h5 class="modal-title" id="planModalLabel">
+                                    <i class="fas fa-heartbeat me-2"></i>${plan.name}
+                                </h5>
+                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <h6><i class="fas fa-building me-2"></i>Insurance Provider</h6>
+                                        <p class="mb-3">${plan.carrier_name || 'Unknown Carrier'}</p>
+                                        
+                                        <h6><i class="fas fa-dollar-sign me-2"></i>Cost Information</h6>
+                                        <ul class="list-unstyled">
+                                            <li><strong>Monthly Premium:</strong> $${plan.premium}</li>
+                                            <li><strong>Annual Deductible:</strong> $${plan.deductible}</li>
+                                            <li><strong>Coverage Type:</strong> ${plan.coverage_type}</li>
+                                            <li><strong>Network Type:</strong> ${plan.network_type}</li>
+                                        </ul>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <h6><i class="fas fa-star me-2"></i>Plan Rating</h6>
+                                        <div class="rating-stars mb-3">
+                                            ${'★'.repeat(Math.floor(plan.rating))}${'☆'.repeat(5-Math.floor(plan.rating))}
+                                            <span class="ms-2">${plan.rating}/5</span>
+                                        </div>
+                                        
+                                        <h6><i class="fas fa-calendar me-2"></i>Last Updated</h6>
+                                        <p class="mb-3">${new Date(plan.last_updated).toLocaleDateString()}</p>
+                                    </div>
+                                </div>
+                                
+                                <div class="row mt-4">
+                                    <div class="col-md-6">
+                                        <h6><i class="fas fa-check-circle me-2 text-success"></i>Covered Benefits</h6>
+                                        <ul class="list-unstyled">
+                                            ${plan.benefits.map(benefit => `<li class="benefit-item">${benefit}</li>`).join('')}
+                                        </ul>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <h6><i class="fas fa-times-circle me-2 text-danger"></i>Exclusions</h6>
+                                        <ul class="list-unstyled">
+                                            ${plan.exclusions.map(exclusion => `<li class="exclusion-item">${exclusion}</li>`).join('')}
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                                <button type="button" class="btn btn-primary">
+                                    <i class="fas fa-phone me-2"></i>Contact Provider
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Remove existing modal if any
+            const existingModal = document.getElementById('planModal');
+            if (existingModal) {
+                existingModal.remove();
+            }
+            
+            // Add modal to body
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+            
+            // Show modal
+            const modal = new bootstrap.Modal(document.getElementById('planModal'));
+            modal.show();
+        }
+        
+        async function calculateCost(planId) {
+            try {
+                const response = await fetch('/api/calculate-cost', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        plan_id: planId,
+                        usage_scenario: 'moderate'
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showCostModal(data.cost_breakdown);
+                } else {
+                    alert(`Error: ${data.error || 'Failed to calculate cost'}`);
+                }
+            } catch (error) {
+                alert(`Error calculating cost: ${error.message}`);
+            }
+        }
+        
+        function showCostModal(costData) {
+            const modalHtml = `
+                <div class="modal fade" id="costModal" tabindex="-1" aria-labelledby="costModalLabel" aria-hidden="true">
+                    <div class="modal-dialog modal-lg">
+                        <div class="modal-content">
+                            <div class="modal-header" style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: white;">
+                                <h5 class="modal-title" id="costModalLabel">
+                                    <i class="fas fa-calculator me-2"></i>Cost Calculator - ${costData.plan_name}
+                                </h5>
+                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <h6><i class="fas fa-building me-2"></i>Plan Details</h6>
+                                        <p><strong>Carrier:</strong> ${costData.carrier}</p>
+                                        <p><strong>Usage Scenario:</strong> ${costData.usage_scenario.charAt(0).toUpperCase() + costData.usage_scenario.slice(1)}</p>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <h6><i class="fas fa-dollar-sign me-2"></i>Annual Cost Breakdown</h6>
+                                        <ul class="list-unstyled">
+                                            <li><strong>Monthly Premium:</strong> $${costData.monthly_premium}</li>
+                                            <li><strong>Annual Premium:</strong> $${costData.annual_premium}</li>
+                                            <li><strong>Deductible:</strong> $${costData.deductible}</li>
+                                            <li><strong>Estimated Copays:</strong> $${costData.estimated_copays}</li>
+                                            <li><strong>Estimated Coinsurance:</strong> $${costData.estimated_coinsurance}</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                                
+                                <div class="row mt-4">
+                                    <div class="col-md-12">
+                                        <div class="alert alert-info">
+                                            <h6><i class="fas fa-info-circle me-2"></i>Total Annual Cost</h6>
+                                            <h4 class="text-primary">$${costData.total_annual_cost}</h4>
+                                            <p class="mb-0">Cost per month: <strong>$${costData.cost_per_month}</strong></p>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="row mt-3">
+                                    <div class="col-md-12">
+                                        <div class="alert alert-success">
+                                            <h6><i class="fas fa-piggy-bank me-2"></i>Potential Savings</h6>
+                                            <p class="mb-0">If you don't use all your deductible: <strong>$${costData.potential_savings}</strong></p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                                <button type="button" class="btn btn-success">
+                                    <i class="fas fa-download me-2"></i>Download Report
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Remove existing modal if any
+            const existingModal = document.getElementById('costModal');
+            if (existingModal) {
+                existingModal.remove();
+            }
+            
+            // Add modal to body
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+            
+            // Show modal
+            const modal = new bootstrap.Modal(document.getElementById('costModal'));
+            modal.show();
+        }
+        
+        function addToComparison(planId) {
+            if (comparisonPlans.length >= 3) {
+                alert('Maximum 3 plans can be compared at once. Please remove a plan first.');
+                return;
+            }
+            
+            if (comparisonPlans.includes(planId)) {
+                alert('This plan is already in comparison.');
+                return;
+            }
+            
+            comparisonPlans.push(planId);
+            updateComparisonUI();
+        }
+        
+        function removeFromComparison(planId) {
+            comparisonPlans = comparisonPlans.filter(id => id !== planId);
+            updateComparisonUI();
+        }
+        
+        function updateComparisonUI() {
+            const comparisonBtn = document.getElementById('compareBtn');
+            if (comparisonPlans.length > 0) {
+                comparisonBtn.style.display = 'block';
+                comparisonBtn.innerHTML = `
+                    <i class="fas fa-balance-scale me-2"></i>Compare Plans (${comparisonPlans.length})
+                    <button class="btn btn-sm btn-outline-danger ms-2" onclick="clearComparison()">
+                        <i class="fas fa-times"></i>
+                    </button>
+                `;
+            } else {
+                comparisonBtn.style.display = 'none';
+            }
+        }
+        
+        function clearComparison() {
+            comparisonPlans = [];
+            updateComparisonUI();
+        }
+        
+        async function compareSelectedPlans() {
+            if (comparisonPlans.length < 2) {
+                alert('Please select at least 2 plans to compare.');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/compare', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        plan_ids: comparisonPlans
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showComparisonModal(data.plans, data.comparison_summary);
+                } else {
+                    alert(`Error: ${data.error || 'Failed to compare plans'}`);
+                }
+            } catch (error) {
+                alert(`Error comparing plans: ${error.message}`);
+            }
+        }
+        
+        function showComparisonModal(plans, summary) {
+            const modalHtml = `
+                <div class="modal fade" id="comparisonModal" tabindex="-1" aria-labelledby="comparisonModalLabel" aria-hidden="true">
+                    <div class="modal-dialog modal-xl">
+                        <div class="modal-content">
+                            <div class="modal-header" style="background: linear-gradient(135deg, #ffc107 0%, #fd7e14 100%); color: white;">
+                                <h5 class="modal-title" id="comparisonModalLabel">
+                                    <i class="fas fa-balance-scale me-2"></i>Plan Comparison
+                                </h5>
+                                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                            </div>
+                            <div class="modal-body">
+                                <div class="row mb-4">
+                                    <div class="col-md-12">
+                                        <div class="alert alert-info">
+                                            <h6><i class="fas fa-chart-bar me-2"></i>Comparison Summary</h6>
+                                            <p class="mb-0">Comparing ${summary.total_plans} plans | 
+                                            Premium Range: $${summary.price_range.min_premium} - $${summary.price_range.max_premium} | 
+                                            Deductible Range: $${summary.price_range.min_deductible} - $${summary.price_range.max_deductible}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="table-responsive">
+                                    <table class="table table-striped">
+                                        <thead class="table-dark">
+                                            <tr>
+                                                <th>Feature</th>
+                                                ${plans.map(plan => `<th>${plan.name}</th>`).join('')}
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <tr>
+                                                <td><strong>Carrier</strong></td>
+                                                ${plans.map(plan => `<td>${plan.carrier_name}</td>`).join('')}
+                                            </tr>
+                                            <tr>
+                                                <td><strong>Monthly Premium</strong></td>
+                                                ${plans.map(plan => `<td>$${plan.premium}</td>`).join('')}
+                                            </tr>
+                                            <tr>
+                                                <td><strong>Deductible</strong></td>
+                                                ${plans.map(plan => `<td>$${plan.deductible}</td>`).join('')}
+                                            </tr>
+                                            <tr>
+                                                <td><strong>Coverage Type</strong></td>
+                                                ${plans.map(plan => `<td>${plan.coverage_type}</td>`).join('')}
+                                            </tr>
+                                            <tr>
+                                                <td><strong>Network Type</strong></td>
+                                                ${plans.map(plan => `<td>${plan.network_type}</td>`).join('')}
+                                            </tr>
+                                            <tr>
+                                                <td><strong>Rating</strong></td>
+                                                ${plans.map(plan => `<td>${'★'.repeat(Math.floor(plan.rating))}${'☆'.repeat(5-Math.floor(plan.rating))} ${plan.rating}/5</td>`).join('')}
+                                            </tr>
+                                            <tr>
+                                                <td><strong>Benefits</strong></td>
+                                                ${plans.map(plan => `<td>${plan.benefits.slice(0, 3).join(', ')}</td>`).join('')}
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                                <button type="button" class="btn btn-primary">
+                                    <i class="fas fa-download me-2"></i>Export Comparison
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Remove existing modal if any
+            const existingModal = document.getElementById('comparisonModal');
+            if (existingModal) {
+                existingModal.remove();
+            }
+            
+            // Add modal to body
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+            
+            // Show modal
+            const modal = new bootstrap.Modal(document.getElementById('comparisonModal'));
+            modal.show();
+        }
+    </script>
+</body>
+</html>
