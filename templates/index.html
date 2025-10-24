@@ -123,6 +123,45 @@
                                 <input type="number" class="form-control" id="max_premium" name="max_premium" 
                                        placeholder="500">
                             </div>
+                            <div class="col-md-3 mb-3">
+                                <label for="max_deductible" class="form-label">Max Deductible</label>
+                                <input type="number" class="form-control" id="max_deductible" name="max_deductible" 
+                                       placeholder="3000">
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-12 mb-2"><strong>Benefits</strong></div>
+                            <div class="col-md-12 d-flex flex-wrap gap-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" value="preventive" id="b_preventive" name="benefits">
+                                    <label class="form-check-label" for="b_preventive">Preventive Care</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" value="emergency" id="b_emergency" name="benefits">
+                                    <label class="form-check-label" for="b_emergency">Emergency Services</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" value="prescription" id="b_rx" name="benefits">
+                                    <label class="form-check-label" for="b_rx">Prescription Drugs</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" value="mental" id="b_mental" name="benefits">
+                                    <label class="form-check-label" for="b_mental">Mental Health</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" value="dental" id="b_dental" name="benefits">
+                                    <label class="form-check-label" for="b_dental">Dental</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" value="vision" id="b_vision" name="benefits">
+                                    <label class="form-check-label" for="b_vision">Vision</label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" value="maternity" id="b_maternity" name="benefits">
+                                    <label class="form-check-label" for="b_maternity">Maternity Care</label>
+                                </div>
+                            </div>
                         </div>
                         
                         <div class="text-center">
@@ -191,12 +230,14 @@
             e.preventDefault();
             
             const formData = new FormData(this);
+            const selectedBenefits = formData.getAll('benefits');
             const searchData = {
                 query: formData.get('query') || '',
                 location: formData.get('location') || null,
                 max_premium: formData.get('max_premium') ? parseFloat(formData.get('max_premium')) : null,
                 max_deductible: formData.get('max_deductible') ? parseFloat(formData.get('max_deductible')) : null,
-                coverage_type: formData.get('coverage_type') || null
+                coverage_type: formData.get('coverage_type') || null,
+                benefits: selectedBenefits
             };
             
             // Show loading
@@ -691,6 +732,108 @@
             const modal = new bootstrap.Modal(document.getElementById('comparisonModal'));
             modal.show();
         }
+    </script>
+    
+    <!-- Chatbot UI -->
+    <style>
+        .chat-toggle-btn { position: fixed; right: 24px; bottom: 24px; z-index: 1050; }
+        .chat-panel { position: fixed; right: 24px; bottom: 90px; width: 360px; max-height: 70vh; background: #fff; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); display: none; flex-direction: column; overflow: hidden; z-index: 1050; }
+        .chat-header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: #fff; padding: 10px 14px; font-weight: 600; display: flex; align-items: center; justify-content: space-between; }
+        .chat-messages { padding: 12px; overflow-y: auto; height: 380px; }
+        .chat-input { display: flex; gap: 8px; padding: 10px; border-top: 1px solid #eee; }
+        .bubble { max-width: 80%; padding: 10px 12px; border-radius: 12px; margin: 8px 0; line-height: 1.3; }
+        .user-bubble { background: #eef2ff; margin-left: auto; }
+        .ai-bubble { background: #f8f9fa; margin-right: auto; }
+    </style>
+    
+    <button id="chatToggle" class="btn btn-primary chat-toggle-btn">
+        <i class="fas fa-comments me-1"></i> Chat
+    </button>
+    <div id="chatPanel" class="chat-panel">
+        <div class="chat-header">
+            <span><i class="fas fa-robot me-2"></i>Insurance Assistant</span>
+            <button id="chatClose" class="btn btn-sm btn-light">Close</button>
+        </div>
+        <div id="chatMessages" class="chat-messages"></div>
+        <div class="chat-input">
+            <input id="chatInput" class="form-control" placeholder="Ask about dental, vision, low cost..." />
+            <button id="chatSend" class="btn btn-primary"><i class="fas fa-paper-plane"></i></button>
+        </div>
+    </div>
+    
+    <script>
+        (function(){
+            const chatToggle = document.getElementById('chatToggle');
+            const chatPanel = document.getElementById('chatPanel');
+            const chatClose = document.getElementById('chatClose');
+            const chatMessages = document.getElementById('chatMessages');
+            const chatInput = document.getElementById('chatInput');
+            const chatSend = document.getElementById('chatSend');
+            
+            let messageHistory = [];
+            let lastSearchContext = null; // set by search handler below
+            let lastTopPlans = [];
+
+            function addMessage(role, content){
+                const div = document.createElement('div');
+                div.className = 'bubble ' + (role === 'user' ? 'user-bubble' : 'ai-bubble');
+                div.textContent = content;
+                chatMessages.appendChild(div);
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            }
+
+            chatToggle.addEventListener('click', ()=>{ chatPanel.style.display = 'flex'; });
+            chatClose.addEventListener('click', ()=>{ chatPanel.style.display = 'none'; });
+            chatSend.addEventListener('click', sendChat);
+            chatInput.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ sendChat(); }});
+
+            async function sendChat(){
+                const text = chatInput.value.trim();
+                if(!text) return;
+                chatInput.value='';
+                addMessage('user', text);
+                messageHistory.push({ role: 'user', content: text });
+                try {
+                    const resp = await fetch('/api/chat', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            messages: messageHistory.slice(-20),
+                            search_context: lastSearchContext,
+                            top_plans: lastTopPlans
+                        })
+                    });
+                    const data = await resp.json();
+                    if(data.error){ addMessage('assistant', `Error: ${data.error}`); return; }
+                    addMessage('assistant', data.assistant_message || '');
+                    messageHistory.push({ role: 'assistant', content: data.assistant_message || '' });
+                } catch(err){
+                    addMessage('assistant', 'Sorry, something went wrong.');
+                }
+            }
+
+            // Hook into existing search to capture context
+            const originalSearch = window.performSearch;
+            window.performSearch = async function(e){
+                if(e) e.preventDefault();
+                const form = document.getElementById('searchForm');
+                const formData = new FormData(form);
+                lastSearchContext = {
+                    query: formData.get('query') || '',
+                    location: formData.get('location') || '',
+                    max_premium: formData.get('max_premium') ? parseFloat(formData.get('max_premium')) : null
+                };
+                const result = await originalSearch.apply(this, arguments);
+                try {
+                    // Get top 5 plans from the last rendered results if available
+                    const cards = Array.from(document.querySelectorAll('[data-plan]')).slice(0,5);
+                    lastTopPlans = cards.map(c=>{
+                        try { return JSON.parse(c.getAttribute('data-plan')); } catch{ return null; }
+                    }).filter(Boolean);
+                } catch{}
+                return result;
+            };
+        })();
     </script>
 </body>
 </html>

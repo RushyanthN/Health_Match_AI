@@ -15,6 +15,18 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 import uvicorn
+try:
+    from dotenv import load_dotenv
+    # Load variables from .env if present (project root)
+    load_dotenv()
+except Exception:
+    pass
+
+# Optional Groq SDK (used if available and base URL is Groq)
+try:
+    from groq import Groq  # type: ignore
+except Exception:
+    Groq = None  # Fallback to HTTP path
 
 app = FastAPI(title="Health Insurance AI Platform", version="1.0.0")
 
@@ -24,6 +36,79 @@ templates = Jinja2Templates(directory="templates")
 
 # Database configuration
 DATABASE_PATH = "insurance_platform.db"
+
+# Simple in-memory rate limit store for chat (per IP)
+RATE_LIMIT_WINDOW_SECONDS = 60
+RATE_LIMIT_MAX_REQUESTS = 3
+_rate_limiter: Dict[str, List[datetime]] = {}
+
+# LLM provider configuration (Groq-first)
+GROQ_API_KEY = os.getenv("GROQ_API_KEY") or os.getenv("GOQ_API_KEY")
+GROQ_BASE_URL = os.getenv("GROQ_BASE_URL", "https://api.groq.com/openai/v1")
+GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
+
+async def call_openai_chat(messages: List[Dict[str, str]]) -> str:
+    """Call OpenAI Chat Completions API and return assistant text.
+
+    Falls back with a helpful message if API key is not set or request fails.
+    """
+    # Re-read env each call so newly-set keys are picked up without restart
+    api_key = os.getenv("GROQ_API_KEY") or os.getenv("GOQ_API_KEY") or GROQ_API_KEY
+    base_url = os.getenv("GROQ_BASE_URL", GROQ_BASE_URL)
+    model = os.getenv("GROQ_MODEL", GROQ_MODEL)
+
+    if not api_key:
+        return (
+            "AI is not configured yet. Set GROQ_API_KEY in your environment/.env. "
+            "Meanwhile, try using the search and filters above."
+        )
+
+    # If using Groq API and SDK is present, prefer SDK (more compatible)
+    if "api.groq.com" in base_url and Groq is not None:
+        try:
+            # Groq SDK is sync; run in thread to avoid blocking loop
+            from functools import partial
+            loop = asyncio.get_event_loop()
+            def _call_groq():
+                client = Groq(api_key=api_key)
+                resp = client.chat.completions.create(
+                    model=model,
+                    messages=messages,
+                    temperature=0.2,
+                )
+                return resp
+            resp = await loop.run_in_executor(None, _call_groq)
+            try:
+                return resp.choices[0].message.content or ""
+            except Exception:
+                return ""
+        except Exception as e:
+            print(f"Groq SDK call error: {e}")
+            # fall through to HTTP path as backup
+
+    url = f"{base_url}/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "model": model,
+        "messages": messages,
+        "temperature": 0.2,
+    }
+
+    try:
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=25)) as session:
+            async with session.post(url, headers=headers, json=payload) as resp:
+                if resp.status != 200:
+                    text = await resp.text()
+                    print(f"Provider error {resp.status}: {text}")
+                    return "Sorry, I couldn't reach the AI service right now. Please try again."
+                data = await resp.json()
+                return data.get("choices", [{}])[0].get("message", {}).get("content", "")
+    except Exception as e:
+        print(f"Provider call error: {e}")
+        return "Sorry, something went wrong contacting the AI service."
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request):
@@ -40,10 +125,15 @@ async def search_insurance(request: Request):
         query = data.get('query', '')
         max_premium = data.get('max_premium')
         coverage_type = data.get('coverage_type')
+        # New filters
+        benefits_filter: List[str] = data.get('benefits') or []
+        max_deductible = data.get('max_deductible')
         
         print(f"Search query: {query}")
         print(f"Max premium: {max_premium}")
         print(f"Coverage type: {coverage_type}")
+        if benefits_filter:
+            print(f"Benefits filter: {benefits_filter}")
         
         # Search for plans
         async with aiosqlite.connect(DATABASE_PATH) as db:
@@ -80,10 +170,21 @@ async def search_insurance(request: Request):
             if max_premium:
                 conditions.append("p.premium <= ?")
                 params.append(max_premium)
+            if max_deductible:
+                conditions.append("p.deductible <= ?")
+                params.append(max_deductible)
             
             if coverage_type:
                 conditions.append("p.coverage_type = ?")
                 params.append(coverage_type)
+
+            # Benefits filter (match all selected benefits)
+            for b in benefits_filter:
+                b = str(b).lower().strip()
+                if not b:
+                    continue
+                conditions.append("LOWER(p.benefits) LIKE ?")
+                params.append(f"%{b}%")
             
             where_clause = " AND ".join(conditions) if conditions else "1=1"
             
@@ -287,6 +388,69 @@ async def health_check():
         "status": "healthy",
         "timestamp": datetime.now().isoformat()
     }
+
+@app.post("/api/chat")
+async def chat_endpoint(request: Request):
+    """Chat endpoint that optionally uses recent search context.
+
+    Body:
+    {
+      "messages": [{"role": "user"|"assistant"|"system", "content": str}],
+      "search_context": {"query": str, "location": str, "max_premium": number}?,
+      "top_plans": [{"id": str, "name": str, "carrier_name": str, "premium": number, "benefits": list}]?
+    }
+    """
+    try:
+        # Basic rate limiting by client IP
+        client_ip = request.client.host if request.client else "anonymous"
+        now = datetime.utcnow()
+        history = _rate_limiter.get(client_ip, [])
+        history = [t for t in history if (now - t).total_seconds() < RATE_LIMIT_WINDOW_SECONDS]
+        if len(history) >= RATE_LIMIT_MAX_REQUESTS:
+            return JSONResponse({"error": "Too many requests. Please wait a moment."}, status_code=429)
+        history.append(now)
+        _rate_limiter[client_ip] = history
+
+        body = await request.json()
+        user_messages = body.get("messages", [])
+        search_context = body.get("search_context")
+        top_plans = body.get("top_plans", [])[:5]
+
+        # Build system prompt and optional context
+        system_prompt = (
+            "You are Health Insurance Assistant. Answer clearly and concisely. "
+            "If recommendations are requested, suggest filters (benefits, max premium, location). "
+            "Do not invent plan details; only summarize from provided context."
+        )
+
+        context_sections: List[str] = []
+        if search_context:
+            context_sections.append(
+                f"Search Context: query={search_context.get('query')}, "
+                f"location={search_context.get('location')}, "
+                f"max_premium={search_context.get('max_premium')}"
+            )
+        if top_plans:
+            plan_lines = []
+            for p in top_plans:
+                benefits = ", ".join(p.get("benefits", [])[:4])
+                plan_lines.append(
+                    f"- {p.get('name')} ({p.get('carrier_name')}) • ${p.get('premium')}/mo • {benefits}"
+                )
+            context_sections.append("Top Plans:\n" + "\n".join(plan_lines))
+
+        if context_sections:
+            user_messages = user_messages[:]
+            user_messages.insert(0, {"role": "system", "content": system_prompt + "\n\n" + "\n".join(context_sections)})
+        else:
+            user_messages = user_messages[:]
+            user_messages.insert(0, {"role": "system", "content": system_prompt})
+
+        assistant_text = await call_openai_chat(user_messages)
+        return {"assistant_message": assistant_text}
+    except Exception as e:
+        print(f"Chat error: {e}")
+        return JSONResponse({"error": str(e)}, status_code=500)
 
 if __name__ == "__main__":
     print("=" * 60)
